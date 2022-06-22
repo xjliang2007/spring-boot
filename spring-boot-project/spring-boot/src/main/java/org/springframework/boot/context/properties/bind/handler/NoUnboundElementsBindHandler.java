@@ -107,9 +107,10 @@ public class NoUnboundElementsBindHandler extends AbstractBindHandler {
 		for (ConfigurationPropertyName unboundName : filtered) {
 			try {
 				unbound.add(
-						source.filter((candidate) -> isUnbound(name, candidate)).getConfigurationProperty(unboundName));
+						source.filter((candidate) -> isUnbound(name, candidate)).getConfigurationProperty(unboundName)
+				);
 			}
-			catch (Exception ex) {
+			catch (Exception ignored) {
 			}
 		}
 	}

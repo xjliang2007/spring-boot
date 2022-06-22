@@ -245,6 +245,7 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 	private void registerWebApplicationScopes() {
 		ExistingWebApplicationScopes existingScopes = new ExistingWebApplicationScopes(getBeanFactory());
 		WebApplicationContextUtils.registerWebApplicationScopes(getBeanFactory());
+		// 上一步会注册额外的Scope,为了保证不覆盖原有的scope，需要restore恢复
 		existingScopes.restore();
 	}
 

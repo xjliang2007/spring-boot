@@ -360,6 +360,7 @@ public class SpringApplication {
 		configureEnvironment(environment, applicationArguments.getSourceArgs());
 		ConfigurationPropertySources.attach(environment);
 		listeners.environmentPrepared(bootstrapContext, environment);
+		// environmentPrepared 事件被处理后可能会改变 DefaultPropertiesPropertySource的位置，重新放到末尾保证其作为默认配置的正确性
 		DefaultPropertiesPropertySource.moveToEnd(environment);
 		configureAdditionalProfiles(environment);
 		bindToSpringApplication(environment);
@@ -367,6 +368,7 @@ public class SpringApplication {
 			environment = new EnvironmentConverter(getClassLoader()).convertEnvironmentIfNecessary(environment,
 					deduceEnvironmentClass());
 		}
+		// environmentPrepared 事件被处理后可能会添加新的 PropertySource，因此需要重新attach
 		ConfigurationPropertySources.attach(environment);
 		return environment;
 	}
@@ -513,9 +515,15 @@ public class SpringApplication {
 	 */
 	protected void configurePropertySources(ConfigurableEnvironment environment, String[] args) {
 		MutablePropertySources sources = environment.getPropertySources();
+		//把defaultProperties放在propertySources的末尾
 		DefaultPropertiesPropertySource.ifNotEmpty(this.defaultProperties, sources::addLast);
 		if (this.addCommandLineProperties && args.length > 0) {
 			String name = CommandLinePropertySource.COMMAND_LINE_PROPERTY_SOURCE_NAME;
+			/*	增加PropertySources的标准姿势：
+				先查询PropertySource name是否已经存在，若不存在，则直接添加相应的PropertySource；
+				若存在，则新建CompositePropertySource，将新PropertySource及已有PropertySource分别添加进去，
+				然后替换掉PropertySources中的同名source即可。
+			 */
 			if (sources.contains(name)) {
 				PropertySource<?> source = sources.get(name);
 				CompositePropertySource composite = new CompositePropertySource(name);
@@ -679,7 +687,15 @@ public class SpringApplication {
 	}
 
 	/**
-	 * Load beans into the application context.
+	 * Load sources bean definition into the application context.
+	 * 注意：
+	 * 这里只是将 SpringApplication的sources(包括primary source和其他设定的sources)的bean definition加载到Bean Factory中，<br>
+	 * 不包括扫描所有的bean definition。
+	 * springboot应用中真正的扫描并解析加载以 @Configuration Model为核心的所有 Bean Definition过程，是放在refreshContext阶段进行的（
+	 * 		即放在AbstractApplicationContext的refresh()中的 invokeBeanFactoryPostProcessors()中进行处理，处理的核心逻辑就放在
+	 * 		ConfigurationClassPostProcessor[这是个BeanDefinitionRegistryPostProcessor/BeanFactoryPostProcessor]这个类中
+	 * 	）
+	 *
 	 * @param context the context to load beans into
 	 * @param sources the sources to load
 	 */
@@ -1145,8 +1161,8 @@ public class SpringApplication {
 	}
 
 	/**
-	 * Set additional sources that will be used to create an ApplicationContext. A source
-	 * can be: a class name, package name, or an XML resource location.
+	 * Set additional sources that will be used to create an ApplicationContext.
+	 * A source can be: a class name, package name, or an XML resource location.
 	 * <p>
 	 * Sources set here will be used in addition to any primary sources set in the
 	 * constructor.

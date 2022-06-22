@@ -56,6 +56,9 @@ public final class ConfigurationPropertySources {
 	}
 
 	/**
+	 * 这里是把 environment的PropertySources 转成 ConfigurationPropertySourcesPropertySource，
+	 * 这样可以利用到 PropertySourcesPropertyResolver 提供的占位符解析能力来解析每个 PropertySource 中出现的占位符. <br>
+	 *
 	 * Attach a {@link ConfigurationPropertySource} support to the specified
 	 * {@link Environment}. Adapts each {@link PropertySource} managed by the environment
 	 * to a {@link ConfigurationPropertySource} and allows classic

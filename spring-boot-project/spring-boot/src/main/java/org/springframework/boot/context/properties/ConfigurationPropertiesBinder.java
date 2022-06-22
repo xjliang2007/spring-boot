@@ -197,8 +197,7 @@ class ConfigurationPropertiesBinder {
 		if (!registry.containsBeanDefinition(BEAN_NAME)) {
 			AbstractBeanDefinition definition = BeanDefinitionBuilder
 					.genericBeanDefinition(ConfigurationPropertiesBinder.class,
-							() -> ((BeanFactory) registry)
-									.getBean(FACTORY_BEAN_NAME, ConfigurationPropertiesBinder.Factory.class).create())
+							() -> ((BeanFactory) registry).getBean(FACTORY_BEAN_NAME, ConfigurationPropertiesBinder.Factory.class).create())
 					.getBeanDefinition();
 			definition.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
 			registry.registerBeanDefinition(ConfigurationPropertiesBinder.BEAN_NAME, definition);

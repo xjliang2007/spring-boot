@@ -81,7 +81,7 @@ public class ApplicationHome {
 					return ClassUtils.forName(startClass, getClass().getClassLoader());
 				}
 			}
-			catch (Exception ex) {
+			catch (Exception ignored) {
 			}
 		}
 		return null;
@@ -97,7 +97,7 @@ public class ApplicationHome {
 				return source.getAbsoluteFile();
 			}
 		}
-		catch (Exception ex) {
+		catch (Exception ignored) {
 		}
 		return null;
 	}
@@ -111,7 +111,7 @@ public class ApplicationHome {
 				}
 			}
 		}
-		catch (Exception ex) {
+		catch (Exception ignored) {
 		}
 		return false;
 	}

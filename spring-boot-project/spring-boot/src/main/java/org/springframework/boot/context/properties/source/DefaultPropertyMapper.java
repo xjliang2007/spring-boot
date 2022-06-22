@@ -74,7 +74,7 @@ final class DefaultPropertyMapper implements PropertyMapper {
 				return convertedName;
 			}
 		}
-		catch (Exception ex) {
+		catch (Exception ignored) {
 		}
 		return ConfigurationPropertyName.EMPTY;
 	}

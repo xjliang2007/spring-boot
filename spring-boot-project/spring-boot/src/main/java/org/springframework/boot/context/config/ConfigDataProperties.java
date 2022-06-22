@@ -168,10 +168,7 @@ class ConfigDataProperties {
 			if (activationContext == null) {
 				return false;
 			}
-			boolean activate = true;
-			activate = activate && isActive(activationContext.getCloudPlatform());
-			activate = activate && isActive(activationContext.getProfiles());
-			return activate;
+			return isActive(activationContext.getCloudPlatform()) && isActive(activationContext.getProfiles());
 		}
 
 		private boolean isActive(CloudPlatform cloudPlatform) {

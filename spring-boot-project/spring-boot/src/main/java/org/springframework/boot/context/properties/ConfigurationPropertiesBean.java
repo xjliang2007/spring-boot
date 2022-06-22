@@ -160,7 +160,7 @@ public final class ConfigurationPropertiesBean {
 					ConfigurationPropertiesBean propertiesBean = get(applicationContext, bean, beanName);
 					propertiesBeans.put(beanName, propertiesBean);
 				}
-				catch (Exception ex) {
+				catch (Exception ignored) {
 				}
 			}
 		}

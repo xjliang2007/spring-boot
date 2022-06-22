@@ -24,13 +24,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
 import org.springframework.aop.scope.ScopedProxyUtils;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.HierarchicalBeanFactory;
@@ -43,7 +41,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Condition;
 import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.ConfigurationCondition;
-import org.springframework.core.Ordered;
 import org.springframework.core.ResolvableType;
 import org.springframework.core.annotation.MergedAnnotation;
 import org.springframework.core.annotation.MergedAnnotation.Adapt;
@@ -73,7 +70,7 @@ import org.springframework.util.StringUtils;
  * @see ConditionalOnMissingBean
  * @see ConditionalOnSingleCandidate
  */
-@Order(Ordered.LOWEST_PRECEDENCE)
+@Order
 class OnBeanCondition extends FilteringSpringBootCondition implements ConfigurationCondition {
 
 	@Override
@@ -168,20 +165,14 @@ class OnBeanCondition extends FilteringSpringBootCondition implements Configurat
 		for (String type : spec.getTypes()) {
 			Collection<String> typeMatches = getBeanNamesForType(classLoader, considerHierarchy, beanFactory, type,
 					parameterizedContainers);
-			Iterator<String> iterator = typeMatches.iterator();
-			while (iterator.hasNext()) {
-				String match = iterator.next();
-				if (beansIgnoredByType.contains(match) || ScopedProxyUtils.isScopedTarget(match)) {
-					iterator.remove();
-				}
-			}
+			typeMatches.removeIf(match -> beansIgnoredByType.contains(match) || ScopedProxyUtils.isScopedTarget(match));
 			if (typeMatches.isEmpty()) {
 				result.recordUnmatchedType(type);
-			}
-			else {
+			} else {
 				result.recordMatchedType(type, typeMatches);
 			}
 		}
+		// 检查bean是否满足annotation()指定的注解
 		for (String annotation : spec.getAnnotations()) {
 			Set<String> annotationMatches = getBeanNamesForAnnotation(classLoader, beanFactory, annotation,
 					considerHierarchy);
@@ -193,6 +184,7 @@ class OnBeanCondition extends FilteringSpringBootCondition implements Configurat
 				result.recordMatchedAnnotation(annotation, annotationMatches);
 			}
 		}
+		// 检查beanName是否满足要求
 		for (String beanName : spec.getNames()) {
 			if (!beansIgnoredByType.contains(beanName) && containsBean(beanFactory, beanName, considerHierarchy)) {
 				result.recordMatchedName(beanName);
@@ -472,7 +464,7 @@ class OnBeanCondition extends FilteringSpringBootCondition implements Configurat
 				try {
 					resolved.add(resolve(className, this.classLoader));
 				}
-				catch (ClassNotFoundException | NoClassDefFoundError ex) {
+				catch (ClassNotFoundException | NoClassDefFoundError ignored) {
 				}
 			}
 			return resolved;
@@ -701,7 +693,8 @@ class OnBeanCondition extends FilteringSpringBootCondition implements Configurat
 		}
 
 		boolean isAllMatched() {
-			return this.unmatchedAnnotations.isEmpty() && this.unmatchedNames.isEmpty()
+			return this.unmatchedAnnotations.isEmpty()
+					&& this.unmatchedNames.isEmpty()
 					&& this.unmatchedTypes.isEmpty();
 		}
 
@@ -744,6 +737,7 @@ class OnBeanCondition extends FilteringSpringBootCondition implements Configurat
 	 * Exception thrown when the bean type cannot be deduced.
 	 */
 	static final class BeanTypeDeductionException extends RuntimeException {
+		private static final long serialVersionUID = -2455835519404247057L;
 
 		private BeanTypeDeductionException(String className, String beanMethodName, Throwable cause) {
 			super("Failed to deduce bean type for " + className + "." + beanMethodName, cause);

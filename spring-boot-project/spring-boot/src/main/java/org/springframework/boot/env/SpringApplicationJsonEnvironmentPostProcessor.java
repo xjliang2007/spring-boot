@@ -187,8 +187,10 @@ public class SpringApplicationJsonEnvironmentPostProcessor implements Environmen
 
 	private static class JsonPropertyValue {
 
-		private static final String[] CANDIDATES = { SPRING_APPLICATION_JSON_PROPERTY,
-				SPRING_APPLICATION_JSON_ENVIRONMENT_VARIABLE };
+		private static final String[] CANDIDATES = {
+				SPRING_APPLICATION_JSON_PROPERTY,
+				SPRING_APPLICATION_JSON_ENVIRONMENT_VARIABLE
+		};
 
 		private final PropertySource<?> propertySource;
 
