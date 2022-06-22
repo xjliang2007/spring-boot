@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,10 @@ package org.springframework.boot.actuate.endpoint.invoker.cache;
 
 import java.security.Principal;
 import java.time.Duration;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -30,6 +31,7 @@ import org.springframework.boot.actuate.endpoint.http.ApiVersion;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvoker;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.ConcurrentReferenceHashMap;
 import org.springframework.util.ObjectUtils;
 
 /**
@@ -44,6 +46,8 @@ import org.springframework.util.ObjectUtils;
 public class CachingOperationInvoker implements OperationInvoker {
 
 	private static final boolean IS_REACTOR_PRESENT = ClassUtils.isPresent("reactor.core.publisher.Mono", null);
+
+	private static final int CACHE_CLEANUP_THRESHOLD = 40;
 
 	private final OperationInvoker invoker;
 
@@ -61,7 +65,7 @@ public class CachingOperationInvoker implements OperationInvoker {
 		Assert.isTrue(timeToLive > 0, "TimeToLive must be strictly positive");
 		this.invoker = invoker;
 		this.timeToLive = timeToLive;
-		this.cachedResponses = new ConcurrentHashMap<>();
+		this.cachedResponses = new ConcurrentReferenceHashMap<>();
 	}
 
 	/**
@@ -78,6 +82,9 @@ public class CachingOperationInvoker implements OperationInvoker {
 			return this.invoker.invoke(context);
 		}
 		long accessTime = System.currentTimeMillis();
+		if (this.cachedResponses.size() > CACHE_CLEANUP_THRESHOLD) {
+			cleanExpiredCachedResponses(accessTime);
+		}
 		ApiVersion contextApiVersion = context.getApiVersion();
 		CacheKey cacheKey = new CacheKey(contextApiVersion, context.getSecurityContext().getPrincipal());
 		CachedResponse cached = this.cachedResponses.get(cacheKey);
@@ -87,6 +94,20 @@ public class CachingOperationInvoker implements OperationInvoker {
 			this.cachedResponses.put(cacheKey, cached);
 		}
 		return cached.getResponse();
+	}
+
+	private void cleanExpiredCachedResponses(long accessTime) {
+		try {
+			Iterator<Entry<CacheKey, CachedResponse>> iterator = this.cachedResponses.entrySet().iterator();
+			while (iterator.hasNext()) {
+				Entry<CacheKey, CachedResponse> entry = iterator.next();
+				if (entry.getValue().isStale(accessTime, this.timeToLive)) {
+					iterator.remove();
+				}
+			}
+		}
+		catch (Exception ex) {
+		}
 	}
 
 	private boolean hasInput(InvocationContext context) {
@@ -110,7 +131,7 @@ public class CachingOperationInvoker implements OperationInvoker {
 	 * @param timeToLive the maximum time in milliseconds that a response can be cached
 	 * @return a caching version of the invoker or the original instance if caching is not
 	 * required
-	 * @deprecated as of 2.3.0 to make it package-private in 2.4
+	 * @deprecated since 2.3.0 for removal in 2.5.0
 	 */
 	@Deprecated
 	public static OperationInvoker apply(OperationInvoker invoker, long timeToLive) {

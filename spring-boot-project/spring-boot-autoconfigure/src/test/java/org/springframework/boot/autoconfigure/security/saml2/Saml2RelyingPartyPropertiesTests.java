@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,13 +56,6 @@ class Saml2RelyingPartyPropertiesTests {
 		assertThat(
 				this.properties.getRegistration().get("simplesamlphp").getIdentityprovider().getSinglesignon().getUrl())
 						.isEqualTo("https://simplesaml-for-spring-saml/SSOService.php");
-	}
-
-	@Test
-	void customizeSsoBindingDefaultsToRedirect() {
-		this.properties.getRegistration().put("simplesamlphp", new Saml2RelyingPartyProperties.Registration());
-		assertThat(this.properties.getRegistration().get("simplesamlphp").getIdentityprovider().getSinglesignon()
-				.getBinding()).isEqualTo(Saml2MessageBinding.REDIRECT);
 	}
 
 	@Test

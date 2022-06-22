@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ import org.springframework.validation.DefaultMessageCodesResolver;
 public class WebMvcProperties {
 
 	/**
-	 * Formatting strategy for message codes. For instance, `PREFIX_ERROR_CODE`.
+	 * Formatting strategy for message codes. For instance, 'PREFIX_ERROR_CODE'.
 	 */
 	private DefaultMessageCodesResolver.Format messageCodesResolverFormat;
 
@@ -493,17 +493,17 @@ public class WebMvcProperties {
 	public static class Format {
 
 		/**
-		 * Date format to use, for example `dd/MM/yyyy`.
+		 * Date format to use, for example 'dd/MM/yyyy'.
 		 */
 		private String date;
 
 		/**
-		 * Time format to use, for example `HH:mm:ss`.
+		 * Time format to use, for example 'HH:mm:ss'.
 		 */
 		private String time;
 
 		/**
-		 * Date-time format to use, for example `yyyy-MM-dd HH:mm:ss`.
+		 * Date-time format to use, for example 'yyyy-MM-dd HH:mm:ss'.
 		 */
 		private String dateTime;
 
@@ -533,6 +533,10 @@ public class WebMvcProperties {
 
 	}
 
+	/**
+	 * Matching strategy options.
+	 * @since 2.4.0
+	 */
 	public enum MatchingStrategy {
 
 		/**
@@ -549,7 +553,7 @@ public class WebMvcProperties {
 
 	/**
 	 * Locale resolution options.
-	 * @deprecated since 2.4.0 in favor of
+	 * @deprecated since 2.4.0 for removal in 2.6.0 in favor of
 	 * {@link org.springframework.boot.autoconfigure.web.WebProperties.LocaleResolver}
 	 */
 	@Deprecated

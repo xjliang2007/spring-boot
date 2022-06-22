@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,16 +32,21 @@ import org.flywaydb.core.api.callback.Event;
 import org.flywaydb.core.api.migration.JavaMigration;
 import org.flywaydb.core.internal.license.FlywayTeamsUpgradeRequiredException;
 import org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform;
+import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.jooq.impl.DefaultDSLContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 
 import org.springframework.beans.factory.BeanCreationException;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jdbc.EmbeddedDataSourceConfiguration;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.boot.jdbc.SchemaManagement;
 import org.springframework.boot.orm.jpa.EntityManagerFactoryBuilder;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -98,6 +103,13 @@ class FlywayAutoConfigurationTests {
 					assertThat(context).hasSingleBean(Flyway.class);
 					assertThat(context.getBean(Flyway.class).getConfiguration().getDataSource()).isNotNull();
 				});
+	}
+
+	@Test
+	void backsOffWithFlywayUrlAndNoSpringJdbc() {
+		this.contextRunner.withPropertyValues("spring.flyway.url:jdbc:hsqldb:mem:" + UUID.randomUUID())
+				.withClassLoader(new FilteredClassLoader("org.springframework.jdbc"))
+				.run((context) -> assertThat(context).doesNotHaveBean(Flyway.class));
 	}
 
 	@Test
@@ -585,6 +597,33 @@ class FlywayAutoConfigurationTests {
 				});
 	}
 
+	@Test
+	void whenFlywayIsAutoConfiguredThenJooqDslContextDependsOnFlywayBeans() {
+		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class, JooqConfiguration.class)
+				.run((context) -> {
+					BeanDefinition beanDefinition = context.getBeanFactory().getBeanDefinition("dslContext");
+					assertThat(beanDefinition.getDependsOn()).containsExactly("flywayInitializer", "flyway");
+				});
+	}
+
+	@Test
+	void whenCustomMigrationInitializerIsDefinedThenJooqDslContextDependsOnIt() {
+		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class, JooqConfiguration.class,
+				CustomFlywayMigrationInitializer.class).run((context) -> {
+					BeanDefinition beanDefinition = context.getBeanFactory().getBeanDefinition("dslContext");
+					assertThat(beanDefinition.getDependsOn()).containsExactly("flywayMigrationInitializer", "flyway");
+				});
+	}
+
+	@Test
+	void whenCustomFlywayIsDefinedThenJooqDslContextDependsOnIt() {
+		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class, JooqConfiguration.class,
+				CustomFlyway.class).run((context) -> {
+					BeanDefinition beanDefinition = context.getBeanFactory().getBeanDefinition("dslContext");
+					assertThat(beanDefinition.getDependsOn()).containsExactly("customFlyway");
+				});
+	}
+
 	@Configuration(proxyBeanMethods = false)
 	static class FlywayDataSourceConfiguration {
 
@@ -657,6 +696,16 @@ class FlywayAutoConfigurationTests {
 			FlywayMigrationInitializer initializer = new FlywayMigrationInitializer(flyway);
 			initializer.setOrder(Ordered.HIGHEST_PRECEDENCE);
 			return initializer;
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class CustomFlyway {
+
+		@Bean
+		Flyway customFlyway() {
+			return Flyway.configure().load();
 		}
 
 	}
@@ -808,6 +857,16 @@ class FlywayAutoConfigurationTests {
 		@Order(0)
 		FlywayConfigurationCustomizer customizerTwo() {
 			return (configuration) -> configuration.connectRetries(10).ignoreMissingMigrations(true);
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class JooqConfiguration {
+
+		@Bean
+		DSLContext dslContext() {
+			return new DefaultDSLContext(SQLDialect.H2);
 		}
 
 	}

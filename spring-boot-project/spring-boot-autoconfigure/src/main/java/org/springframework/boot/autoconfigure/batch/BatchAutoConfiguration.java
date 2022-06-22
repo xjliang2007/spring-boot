@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,9 @@ package org.springframework.boot.autoconfigure.batch;
 
 import javax.sql.DataSource;
 
+import liquibase.integration.spring.SpringLiquibase;
+import org.flywaydb.core.Flyway;
+
 import org.springframework.batch.core.configuration.ListableJobLocator;
 import org.springframework.batch.core.converter.JobParametersConverter;
 import org.springframework.batch.core.explore.JobExplorer;
@@ -27,12 +30,14 @@ import org.springframework.batch.core.launch.support.SimpleJobOperator;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.ExitCodeGenerator;
+import org.springframework.boot.autoconfigure.AbstractDependsOnBeanFactoryPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.flyway.FlywayMigrationInitializer;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -112,6 +117,40 @@ public class BatchAutoConfiguration {
 				BatchProperties properties) {
 			return new BatchDataSourceInitializer(batchDataSource.getIfAvailable(() -> dataSource), resourceLoader,
 					properties);
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class JobRepositoryDependencyConfiguration {
+
+		@Bean
+		JobRepositoryDependsOnBeanFactoryPostProcessor batchDataSourceInitializerJobRepositoryDependsOnBeanFactoryPostProcessor() {
+			return new JobRepositoryDependsOnBeanFactoryPostProcessor(BatchDataSourceInitializer.class);
+		}
+
+		@Bean
+		@ConditionalOnClass(name = "org.flywaydb.core.Flyway")
+		JobRepositoryDependsOnBeanFactoryPostProcessor flywayJobRepositoryDependsOnBeanFactoryPostProcessor() {
+			return new JobRepositoryDependsOnBeanFactoryPostProcessor(FlywayMigrationInitializer.class, Flyway.class);
+		}
+
+		@Bean
+		@ConditionalOnClass(name = "liquibase.integration.spring.SpringLiquibase")
+		JobRepositoryDependsOnBeanFactoryPostProcessor liquibaseJobRepositoryDependsOnBeanFactoryPostProcessor() {
+			return new JobRepositoryDependsOnBeanFactoryPostProcessor(SpringLiquibase.class);
+		}
+
+	}
+
+	/**
+	 * {@link AbstractDependsOnBeanFactoryPostProcessor} for Spring Batch
+	 * {@link JobRepository}.
+	 */
+	static class JobRepositoryDependsOnBeanFactoryPostProcessor extends AbstractDependsOnBeanFactoryPostProcessor {
+
+		JobRepositoryDependsOnBeanFactoryPostProcessor(Class<?>... dependencyTypes) {
+			super(JobRepository.class, dependencyTypes);
 		}
 
 	}

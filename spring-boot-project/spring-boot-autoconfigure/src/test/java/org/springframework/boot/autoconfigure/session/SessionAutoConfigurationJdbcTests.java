@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,18 @@
 
 package org.springframework.boot.autoconfigure.session;
 
+import javax.sql.DataSource;
+
+import org.apache.commons.dbcp2.BasicDataSource;
 import org.junit.jupiter.api.Test;
 
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.EmbeddedDataSourceConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
+import org.springframework.boot.autoconfigure.liquibase.LiquibaseAutoConfiguration;
 import org.springframework.boot.autoconfigure.session.JdbcSessionConfiguration.SpringBootJdbcHttpSessionConfiguration;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.jdbc.DataSourceInitializationMode;
@@ -29,6 +35,9 @@ import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.session.FlushMode;
@@ -37,6 +46,7 @@ import org.springframework.session.data.mongo.MongoIndexedSessionRepository;
 import org.springframework.session.data.redis.RedisIndexedSessionRepository;
 import org.springframework.session.hazelcast.HazelcastIndexedSessionRepository;
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
+import org.springframework.session.jdbc.config.annotation.SpringSessionDataSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -50,9 +60,9 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 class SessionAutoConfigurationJdbcTests extends AbstractSessionAutoConfigurationTests {
 
 	private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner()
-			.withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class,
-					DataSourceTransactionManagerAutoConfiguration.class, JdbcTemplateAutoConfiguration.class,
-					SessionAutoConfiguration.class))
+			.withConfiguration(AutoConfigurations.of(DataSourceTransactionManagerAutoConfiguration.class,
+					JdbcTemplateAutoConfiguration.class, SessionAutoConfiguration.class))
+			.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
 			.withPropertyValues("spring.datasource.generate-unique-name=true");
 
 	@Test
@@ -168,6 +178,89 @@ class SessionAutoConfigurationJdbcTests extends AbstractSessionAutoConfiguration
 							.getBean(SpringBootJdbcHttpSessionConfiguration.class);
 					assertThat(configuration).hasFieldOrPropertyWithValue("saveMode", SaveMode.ON_GET_ATTRIBUTE);
 				});
+	}
+
+	@Test
+	void sessionDataSourceIsUsedWhenAvailable() {
+		this.contextRunner.withUserConfiguration(SessionDataSourceConfiguration.class)
+				.withPropertyValues("spring.session.store-type=jdbc").run((context) -> {
+					JdbcIndexedSessionRepository repository = validateSessionRepository(context,
+							JdbcIndexedSessionRepository.class);
+					assertThat(repository).extracting("jdbcOperations").extracting("dataSource")
+							.isEqualTo(context.getBean("sessionDataSource"));
+					assertThatExceptionOfType(BadSqlGrammarException.class).isThrownBy(
+							() -> context.getBean(JdbcOperations.class).queryForList("select * from SPRING_SESSION"));
+				});
+	}
+
+	@Test
+	void sessionRepositoryBeansDependOnJdbcSessionDataSourceInitializer() {
+		this.contextRunner.withPropertyValues("spring.session.store-type=jdbc").run((context) -> {
+			ConfigurableListableBeanFactory beanFactory = context.getBeanFactory();
+			String[] sessionRepositoryNames = beanFactory.getBeanNamesForType(JdbcIndexedSessionRepository.class);
+			assertThat(sessionRepositoryNames).isNotEmpty();
+			for (String sessionRepositoryName : sessionRepositoryNames) {
+				assertThat(beanFactory.getBeanDefinition(sessionRepositoryName).getDependsOn())
+						.contains("jdbcSessionDataSourceInitializer");
+			}
+		});
+	}
+
+	@Test
+	void sessionRepositoryBeansDependOnFlyway() {
+		this.contextRunner.withConfiguration(AutoConfigurations.of(FlywayAutoConfiguration.class))
+				.withPropertyValues("spring.session.store-type=jdbc", "spring.session.jdbc.initialize-schema=never")
+				.run((context) -> {
+					ConfigurableListableBeanFactory beanFactory = context.getBeanFactory();
+					String[] sessionRepositoryNames = beanFactory
+							.getBeanNamesForType(JdbcIndexedSessionRepository.class);
+					assertThat(sessionRepositoryNames).isNotEmpty();
+					for (String sessionRepositoryName : sessionRepositoryNames) {
+						assertThat(beanFactory.getBeanDefinition(sessionRepositoryName).getDependsOn())
+								.contains("flyway", "flywayInitializer");
+					}
+				});
+	}
+
+	@Test
+	void sessionRepositoryBeansDependOnLiquibase() {
+		this.contextRunner.withConfiguration(AutoConfigurations.of(LiquibaseAutoConfiguration.class))
+				.withPropertyValues("spring.session.store-type=jdbc", "spring.session.jdbc.initialize-schema=never")
+				.run((context) -> {
+					ConfigurableListableBeanFactory beanFactory = context.getBeanFactory();
+					String[] sessionRepositoryNames = beanFactory
+							.getBeanNamesForType(JdbcIndexedSessionRepository.class);
+					assertThat(sessionRepositoryNames).isNotEmpty();
+					for (String sessionRepositoryName : sessionRepositoryNames) {
+						assertThat(beanFactory.getBeanDefinition(sessionRepositoryName).getDependsOn())
+								.contains("liquibase");
+					}
+				});
+	}
+
+	@Configuration
+	static class SessionDataSourceConfiguration {
+
+		@Bean
+		@SpringSessionDataSource
+		DataSource sessionDataSource() {
+			BasicDataSource dataSource = new BasicDataSource();
+			dataSource.setDriverClassName("org.hsqldb.jdbcDriver");
+			dataSource.setUrl("jdbc:hsqldb:mem:sessiondb");
+			dataSource.setUsername("sa");
+			return dataSource;
+		}
+
+		@Bean
+		@Primary
+		DataSource mainDataSource() {
+			BasicDataSource dataSource = new BasicDataSource();
+			dataSource.setDriverClassName("org.hsqldb.jdbcDriver");
+			dataSource.setUrl("jdbc:hsqldb:mem:maindb");
+			dataSource.setUsername("sa");
+			return dataSource;
+		}
+
 	}
 
 }

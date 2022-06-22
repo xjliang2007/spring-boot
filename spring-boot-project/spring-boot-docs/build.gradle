@@ -10,9 +10,6 @@ description = "Spring Boot Docs"
 
 configurations {
 	actuatorApiDocumentation
-	asciidoctorExtensions {
-		extendsFrom dependencyManagement
-	}
 	autoConfiguration
 	configurationProperties
 	gradlePluginDocumentation
@@ -20,20 +17,19 @@ configurations {
 	testSlices
 }
 
-repositories {
-	maven {
-		url "https://repo.spring.io/release"
-		mavenContent {
-			includeGroup "io.spring.asciidoctor"
-		}
-	}
-}
-
 jar {
 	enabled = false
 }
 
 javadoc {
+	enabled = false
+}
+
+javadocJar {
+	enabled = false
+}
+
+sourcesJar {
 	enabled = false
 }
 
@@ -72,13 +68,23 @@ dependencies {
 	implementation("com.zaxxer:HikariCP")
 	implementation("io.micrometer:micrometer-core")
 	implementation("io.projectreactor.netty:reactor-netty-http")
+	implementation("io.undertow:undertow-core")
+	implementation("jakarta.persistence:jakarta.persistence-api")
 	implementation("jakarta.servlet:jakarta.servlet-api")
-	implementation("org.apache.commons:commons-dbcp2")
+	implementation("org.apache.commons:commons-dbcp2") {
+		exclude group: "commons-logging", module: "commons-logging"
+	}
 	implementation("org.apache.kafka:kafka-streams")
 	implementation("org.apache.tomcat.embed:tomcat-embed-core")
 	implementation("org.assertj:assertj-core")
 	implementation("org.glassfish.jersey.core:jersey-server")
-	implementation("org.hibernate:hibernate-jcache")
+	implementation("org.hibernate:hibernate-jcache") {
+		exclude group: "javax.activation", module: "javax.activation-api"
+		exclude group: "javax.persistence", module: "javax.persistence-api"
+		exclude group: "javax.xml.bind", module: "jaxb-api"
+		exclude group: "org.jboss.spec.javax.transaction", module: "jboss-transaction-api_1.2_spec"
+	}
+	implementation("org.springframework:spring-orm")
 	implementation("org.springframework:spring-test")
 	implementation("org.springframework:spring-web")
 	implementation("org.springframework:spring-webflux")
@@ -87,7 +93,11 @@ dependencies {
 	implementation("org.springframework.data:spring-data-redis")
 	implementation("org.springframework.data:spring-data-r2dbc")
 	implementation("org.springframework.kafka:spring-kafka")
-	implementation("org.springframework.restdocs:spring-restdocs-restassured")
+	implementation("org.springframework.restdocs:spring-restdocs-restassured") {
+		exclude group: "commons-logging", module: "commons-logging"
+		exclude group: "javax.activation", module: "activation"
+		exclude group: "javax.xml.bind", module: "jaxb-api"
+	}
 	implementation("org.springframework.restdocs:spring-restdocs-webtestclient")
 	implementation("org.springframework.security:spring-security-config")
 	implementation("org.springframework.security:spring-security-web")
@@ -119,6 +129,7 @@ task aggregatedJavadoc(type: Javadoc) {
 		Set<Project> publishedProjects = rootProject.subprojects.findAll { it != project}
 			.findAll { it.plugins.hasPlugin(JavaPlugin) && it.plugins.hasPlugin(MavenPublishPlugin) }
 			.findAll { !excludedProjects.contains(it.name) }
+			.findAll { !it.name.startsWith('spring-boot-starter') }
 		dependsOn publishedProjects.javadoc
 		source publishedProjects.javadoc.source
 		classpath = project.files(publishedProjects.javadoc.classpath)
@@ -184,8 +195,6 @@ task documentConfigurationProperties(type: org.springframework.boot.build.contex
 
 tasks.withType(org.asciidoctor.gradle.jvm.AbstractAsciidoctorTask) {
 	dependsOn dependencyVersions
-	configurations "asciidoctorExtensions"
-	baseDirFollowsSourceDir()
 	asciidoctorj {
 		fatalWarnings = ['^((?!successfully validated).)*$']
 	}
@@ -330,7 +339,7 @@ artifacts {
 
 publishing {
 	publications {
-		deployment(MavenPublication) {
+		maven(MavenPublication) {
 			artifact zip
 		}
 	}

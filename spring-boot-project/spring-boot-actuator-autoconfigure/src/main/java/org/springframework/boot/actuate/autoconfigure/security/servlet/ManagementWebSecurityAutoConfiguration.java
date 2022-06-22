@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,15 +26,18 @@ import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.security.ConditionalOnDefaultWebSecurity;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.saml2.Saml2RelyingPartyAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.util.ClassUtils;
 
 /**
  * {@link EnableAutoConfiguration Auto-configuration} for Spring Security when actuator is
@@ -46,6 +49,7 @@ import org.springframework.security.web.SecurityFilterChain;
  * of the custom security configuration.
  *
  * @author Madhura Bhave
+ * @author Hatef Palizgar
  * @since 2.1.0
  */
 @Configuration(proxyBeanMethods = false)
@@ -58,12 +62,15 @@ import org.springframework.security.web.SecurityFilterChain;
 public class ManagementWebSecurityAutoConfiguration {
 
 	@Bean
+	@Order(SecurityProperties.BASIC_AUTH_ORDER)
 	SecurityFilterChain managementSecurityFilterChain(HttpSecurity http) throws Exception {
 		http.authorizeRequests((requests) -> {
 			requests.requestMatchers(EndpointRequest.to(HealthEndpoint.class, InfoEndpoint.class)).permitAll();
 			requests.anyRequest().authenticated();
 		});
-		http.cors();
+		if (ClassUtils.isPresent("org.springframework.web.servlet.DispatcherServlet", null)) {
+			http.cors();
+		}
 		http.formLogin(Customizer.withDefaults());
 		http.httpBasic(Customizer.withDefaults());
 		return http.build();

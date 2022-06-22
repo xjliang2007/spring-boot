@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,6 +86,15 @@ class WarIntegrationTests extends AbstractArchiveIntegrationTests {
 		mavenBuild.project("war-system-scope").execute((project) -> {
 			File main = new File(project, "target/war-system-scope-0.0.1.BUILD-SNAPSHOT.war");
 			assertThat(jar(main)).hasEntryWithName("WEB-INF/lib-provided/sample-1.0.0.jar");
+		});
+	}
+
+	@TestTemplate
+	void whenEntryIsExcludedItShouldNotBePresentInTheRepackagedWar(MavenBuild mavenBuild) {
+		mavenBuild.project("war-exclude-entry").execute((project) -> {
+			File war = new File(project, "target/war-exclude-entry-0.0.1.BUILD-SNAPSHOT.war");
+			assertThat(jar(war)).hasEntryWithNameStartingWith("WEB-INF/lib/spring-context")
+					.doesNotHaveEntryWithNameStartingWith("WEB-INF/lib/spring-core");
 		});
 	}
 

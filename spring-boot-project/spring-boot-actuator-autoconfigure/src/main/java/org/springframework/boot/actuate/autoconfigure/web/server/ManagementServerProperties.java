@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ public class ManagementServerProperties {
 	private InetAddress address;
 
 	/**
-	 * Management endpoint base path (for instance, `/management`). Requires a custom
+	 * Management endpoint base path (for instance, '/management'). Requires a custom
 	 * management.server.port.
 	 */
 	private String basePath = "";
@@ -128,7 +128,7 @@ public class ManagementServerProperties {
 	public static class Servlet {
 
 		/**
-		 * Management endpoint context-path (for instance, `/management`). Requires a
+		 * Management endpoint context-path (for instance, '/management'). Requires a
 		 * custom management.server.port.
 		 */
 		private String contextPath = "";
@@ -137,7 +137,7 @@ public class ManagementServerProperties {
 		 * Return the context path with no trailing slash (i.e. the '/' root context is
 		 * represented as the empty string).
 		 * @return the context path (no trailing slash)
-		 * @deprecated since 2.4.0 in favor of
+		 * @deprecated since 2.4.0 for removal in 2.6.0 in favor of
 		 * {@link ManagementServerProperties#getBasePath()}
 		 */
 		@Deprecated
@@ -149,7 +149,7 @@ public class ManagementServerProperties {
 		/**
 		 * Set the context path.
 		 * @param contextPath the context path
-		 * @deprecated since 2.4.0 in favor of
+		 * @deprecated since 2.4.0 for removal in 2.6.0 in favor of
 		 * {@link ManagementServerProperties#setBasePath(String)}
 		 */
 		@Deprecated

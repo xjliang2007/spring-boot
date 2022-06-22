@@ -1,7 +1,9 @@
 [[spring-boot-reference-documentation]]
 = Spring Boot Reference Documentation
 include::authors.adoc[]
+v{spring-boot-version}
 :docinfo: shared
+include::attributes.adoc[]
 
 The reference documentation consists of the following sections:
 

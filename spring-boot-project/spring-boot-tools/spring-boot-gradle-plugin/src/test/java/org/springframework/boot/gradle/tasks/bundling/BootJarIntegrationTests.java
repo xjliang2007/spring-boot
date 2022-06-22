@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -149,6 +149,7 @@ class BootJarIntegrationTests extends AbstractBootArchiveIntegrationTests {
 			assertThat(jarFile.getEntry(layerToolsJar)).isNotNull();
 			assertThat(jarFile.getEntry("BOOT-INF/lib/alpha-1.2.3.jar")).isNotNull();
 			assertThat(jarFile.getEntry("BOOT-INF/lib/bravo-1.2.3.jar")).isNotNull();
+			assertThat(jarFile.getEntry("BOOT-INF/lib/charlie-1.2.3.jar")).isNotNull();
 			assertThat(jarFile.getEntry("BOOT-INF/lib/commons-lang3-3.9.jar")).isNotNull();
 			assertThat(jarFile.getEntry("BOOT-INF/lib/spring-core-5.2.5.RELEASE.jar")).isNotNull();
 			assertThat(jarFile.getEntry("BOOT-INF/lib/spring-jcl-5.2.5.RELEASE.jar")).isNotNull();
@@ -171,7 +172,8 @@ class BootJarIntegrationTests extends AbstractBootArchiveIntegrationTests {
 		assertThat(indexedLayers.get("spring-boot-loader")).containsExactly("org/");
 		assertThat(indexedLayers.get("snapshot-dependencies")).containsExactlyElementsOf(expectedSnapshotDependencies);
 		assertThat(indexedLayers.get("application")).containsExactly("BOOT-INF/classes/", "BOOT-INF/classpath.idx",
-				"BOOT-INF/layers.idx", "BOOT-INF/lib/alpha-1.2.3.jar", "BOOT-INF/lib/bravo-1.2.3.jar", "META-INF/");
+				"BOOT-INF/layers.idx", "BOOT-INF/lib/alpha-1.2.3.jar", "BOOT-INF/lib/bravo-1.2.3.jar",
+				"BOOT-INF/lib/charlie-1.2.3.jar", "META-INF/");
 		BuildResult listLayers = this.gradleBuild.build("listLayers");
 		assertThat(listLayers.task(":listLayers").getOutcome()).isEqualTo(TaskOutcome.SUCCESS);
 		String listLayersOutput = listLayers.getOutput();
@@ -244,6 +246,7 @@ class BootJarIntegrationTests extends AbstractBootArchiveIntegrationTests {
 			assertThat(jarFile.getEntry(layerToolsJar)).isNotNull();
 			assertThat(jarFile.getEntry("BOOT-INF/lib/alpha-1.2.3.jar")).isNotNull();
 			assertThat(jarFile.getEntry("BOOT-INF/lib/bravo-1.2.3.jar")).isNotNull();
+			assertThat(jarFile.getEntry("BOOT-INF/lib/charlie-1.2.3.jar")).isNotNull();
 			assertThat(jarFile.getEntry("BOOT-INF/lib/commons-lang3-3.9.jar")).isNotNull();
 			assertThat(jarFile.getEntry("BOOT-INF/lib/spring-core-5.2.5.RELEASE.jar")).isNotNull();
 			assertThat(jarFile.getEntry("BOOT-INF/lib/spring-jcl-5.2.5.RELEASE.jar")).isNotNull();
@@ -259,6 +262,7 @@ class BootJarIntegrationTests extends AbstractBootArchiveIntegrationTests {
 		Set<String> expectedSubprojectDependencies = new TreeSet<>();
 		expectedSubprojectDependencies.add("BOOT-INF/lib/alpha-1.2.3.jar");
 		expectedSubprojectDependencies.add("BOOT-INF/lib/bravo-1.2.3.jar");
+		expectedSubprojectDependencies.add("BOOT-INF/lib/charlie-1.2.3.jar");
 		Set<String> expectedDependencies = new TreeSet<>();
 		expectedDependencies.add("BOOT-INF/lib/spring-core-5.2.5.RELEASE.jar");
 		expectedDependencies.add("BOOT-INF/lib/spring-jcl-5.2.5.RELEASE.jar");
@@ -296,6 +300,30 @@ class BootJarIntegrationTests extends AbstractBootArchiveIntegrationTests {
 				.isEqualTo(TaskOutcome.SUCCESS);
 	}
 
+	@TestTemplate
+	void packagedApplicationClasspath() throws IOException {
+		copyClasspathApplication();
+		BuildResult result = this.gradleBuild.build("launch");
+		String output = result.getOutput();
+		assertThat(output).containsPattern("1\\. .*classes");
+		assertThat(output).containsPattern("2\\. .*library-1.0-SNAPSHOT.jar");
+		assertThat(output).containsPattern("3\\. .*commons-lang3-3.9.jar");
+		assertThat(output).containsPattern("4\\. .*spring-boot-jarmode-layertools.*.jar");
+		assertThat(output).doesNotContain("5. ");
+	}
+
+	@TestTemplate
+	void explodedApplicationClasspath() throws IOException {
+		copyClasspathApplication();
+		BuildResult result = this.gradleBuild.build("launch");
+		String output = result.getOutput();
+		assertThat(output).containsPattern("1\\. .*classes");
+		assertThat(output).containsPattern("2\\. .*spring-boot-jarmode-layertools.*.jar");
+		assertThat(output).containsPattern("3\\. .*library-1.0-SNAPSHOT.jar");
+		assertThat(output).containsPattern("4\\. .*commons-lang3-3.9.jar");
+		assertThat(output).doesNotContain("5. ");
+	}
+
 	private void assertExtractedLayers(List<String> layerNames, Map<String, List<String>> indexedLayers)
 			throws IOException {
 		Map<String, List<String>> extractedLayers = readExtractedLayers(this.gradleBuild.getProjectDir(), layerNames);
@@ -324,7 +352,7 @@ class BootJarIntegrationTests extends AbstractBootArchiveIntegrationTests {
 	private void writeSettingsGradle() {
 		try (PrintWriter writer = new PrintWriter(
 				new FileWriter(new File(this.gradleBuild.getProjectDir(), "settings.gradle")))) {
-			writer.println("include 'alpha', 'bravo'");
+			writer.println("include 'alpha', 'bravo', 'charlie'");
 		}
 		catch (IOException ex) {
 			throw new RuntimeException(ex);
@@ -393,6 +421,10 @@ class BootJarIntegrationTests extends AbstractBootArchiveIntegrationTests {
 							.map(Path::toString).map(StringUtils::cleanPath).collect(Collectors.toList()));
 		}
 		return extractedLayers;
+	}
+
+	private void copyClasspathApplication() throws IOException {
+		copyApplication("classpath");
 	}
 
 }

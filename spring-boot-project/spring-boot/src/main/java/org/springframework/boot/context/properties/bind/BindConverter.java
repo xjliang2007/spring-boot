@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,9 @@ import org.springframework.beans.propertyeditors.FileEditor;
 import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.core.ResolvableType;
 import org.springframework.core.convert.ConversionException;
+import org.springframework.core.convert.ConversionFailedException;
 import org.springframework.core.convert.ConversionService;
+import org.springframework.core.convert.ConverterNotFoundException;
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.core.convert.converter.ConditionalGenericConverter;
 import org.springframework.core.convert.support.GenericConversionService;
@@ -157,17 +159,20 @@ final class BindConverter {
 
 		@Override
 		public Object convert(Object source, TypeDescriptor sourceType, TypeDescriptor targetType) {
-			for (int i = 0; i < this.delegates.size() - 1; i++) {
+			ConversionException failure = null;
+			for (ConversionService delegate : this.delegates) {
 				try {
-					ConversionService delegate = this.delegates.get(i);
 					if (delegate.canConvert(sourceType, targetType)) {
 						return delegate.convert(source, sourceType, targetType);
 					}
 				}
 				catch (ConversionException ex) {
+					if (failure == null && ex instanceof ConversionFailedException) {
+						failure = ex;
+					}
 				}
 			}
-			return this.delegates.get(this.delegates.size() - 1).convert(source, sourceType, targetType);
+			throw (failure != null) ? failure : new ConverterNotFoundException(sourceType, targetType);
 		}
 
 	}
@@ -180,16 +185,8 @@ final class BindConverter {
 	private static class TypeConverterConversionService extends GenericConversionService {
 
 		TypeConverterConversionService(Consumer<PropertyEditorRegistry> initializer) {
-			addConverter(new TypeConverterConverter(createTypeConverter(initializer)));
+			addConverter(new TypeConverterConverter(initializer));
 			ApplicationConversionService.addDelimitedStringConverters(this);
-		}
-
-		private SimpleTypeConverter createTypeConverter(Consumer<PropertyEditorRegistry> initializer) {
-			SimpleTypeConverter typeConverter = new SimpleTypeConverter();
-			if (initializer != null) {
-				initializer.accept(typeConverter);
-			}
-			return typeConverter;
 		}
 
 		@Override
@@ -208,10 +205,15 @@ final class BindConverter {
 	 */
 	private static class TypeConverterConverter implements ConditionalGenericConverter {
 
-		private final SimpleTypeConverter typeConverter;
+		private final Consumer<PropertyEditorRegistry> initializer;
 
-		TypeConverterConverter(SimpleTypeConverter typeConverter) {
-			this.typeConverter = typeConverter;
+		// SimpleTypeConverter is not thread-safe to use for conversion but we can use it
+		// in a thread-safe way to check if conversion is possible.
+		private final SimpleTypeConverter matchesOnlyTypeConverter;
+
+		TypeConverterConverter(Consumer<PropertyEditorRegistry> initializer) {
+			this.initializer = initializer;
+			this.matchesOnlyTypeConverter = createTypeConverter();
 		}
 
 		@Override
@@ -221,32 +223,32 @@ final class BindConverter {
 
 		@Override
 		public boolean matches(TypeDescriptor sourceType, TypeDescriptor targetType) {
-			return getPropertyEditor(targetType.getType()) != null;
-		}
-
-		@Override
-		public Object convert(Object source, TypeDescriptor sourceType, TypeDescriptor targetType) {
-			SimpleTypeConverter typeConverter = this.typeConverter;
-			return typeConverter.convertIfNecessary(source, targetType.getType());
-		}
-
-		private PropertyEditor getPropertyEditor(Class<?> type) {
+			Class<?> type = targetType.getType();
 			if (type == null || type == Object.class || Collection.class.isAssignableFrom(type)
 					|| Map.class.isAssignableFrom(type)) {
-				return null;
+				return false;
 			}
-			SimpleTypeConverter typeConverter = this.typeConverter;
-			PropertyEditor editor = typeConverter.getDefaultEditor(type);
+			PropertyEditor editor = this.matchesOnlyTypeConverter.getDefaultEditor(type);
 			if (editor == null) {
-				editor = typeConverter.findCustomEditor(type, null);
+				editor = this.matchesOnlyTypeConverter.findCustomEditor(type, null);
 			}
 			if (editor == null && String.class != type) {
 				editor = BeanUtils.findEditorByConvention(type);
 			}
-			if (editor == null || EXCLUDED_EDITORS.contains(editor.getClass())) {
-				return null;
+			return (editor != null && !EXCLUDED_EDITORS.contains(editor.getClass()));
+		}
+
+		@Override
+		public Object convert(Object source, TypeDescriptor sourceType, TypeDescriptor targetType) {
+			return createTypeConverter().convertIfNecessary(source, targetType.getType());
+		}
+
+		private SimpleTypeConverter createTypeConverter() {
+			SimpleTypeConverter typeConverter = new SimpleTypeConverter();
+			if (this.initializer != null) {
+				this.initializer.accept(typeConverter);
 			}
-			return editor;
+			return typeConverter;
 		}
 
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskAction;
@@ -109,18 +110,19 @@ public class MavenPluginPlugin implements Plugin<Project> {
 		project.getDependencies()
 				.components((components) -> components.all(MavenRepositoryComponentMetadataRule.class));
 		Copy task = project.getTasks().create("populateIntTestMavenRepository", Copy.class);
-		task.setDestinationDir(project.getBuildDir());
-		task.into("int-test-maven-repository",
-				(copy) -> copyIntTestMavenRepositoryFiles(project, copy, runtimeClasspathMavenRepository));
+		task.setDestinationDir(new File(project.getBuildDir(), "int-test-maven-repository"));
+		task.with(copyIntTestMavenRepositoryFiles(project, runtimeClasspathMavenRepository));
 		task.dependsOn(project.getTasks().getByName(MavenRepositoryPlugin.PUBLISH_TO_PROJECT_REPOSITORY_TASK_NAME));
 		project.getTasks().getByName(IntegrationTestPlugin.INT_TEST_TASK_NAME).dependsOn(task);
 	}
 
-	private void copyIntTestMavenRepositoryFiles(Project project, CopySpec copy,
+	private CopySpec copyIntTestMavenRepositoryFiles(Project project,
 			RuntimeClasspathMavenRepository runtimeClasspathMavenRepository) {
-		copy.from(project.getConfigurations().getByName(MavenRepositoryPlugin.MAVEN_REPOSITORY_CONFIGURATION_NAME));
-		copy.from(new File(project.getBuildDir(), "maven-repository"));
-		copy.from(runtimeClasspathMavenRepository);
+		CopySpec copySpec = project.copySpec();
+		copySpec.from(project.getConfigurations().getByName(MavenRepositoryPlugin.MAVEN_REPOSITORY_CONFIGURATION_NAME));
+		copySpec.from(new File(project.getBuildDir(), "maven-repository"));
+		copySpec.from(runtimeClasspathMavenRepository);
+		return copySpec;
 	}
 
 	private void addDocumentPluginGoalsTask(Project project, MavenExec generatePluginDescriptorTask) {
@@ -168,7 +170,7 @@ public class MavenPluginPlugin implements Plugin<Project> {
 		FormatHelpMojoSourceTask copyFormattedHelpMojoSourceTask = createCopyFormattedHelpMojoSourceTask(project,
 				generateHelpMojoTask, generatedHelpMojoDir);
 		project.getTasks().getByName(mainSourceSet.getCompileJavaTaskName()).dependsOn(copyFormattedHelpMojoSourceTask);
-		mainSourceSet.java((javaSources) -> javaSources.srcDir(generatedHelpMojoDir));
+		mainSourceSet.java((javaSources) -> javaSources.srcDir(copyFormattedHelpMojoSourceTask));
 		Copy pluginDescriptorInputs = createCopyPluginDescriptorInputs(project, pluginDescriptorDir, mainSourceSet);
 		pluginDescriptorInputs.dependsOn(mainSourceSet.getClassesTaskName());
 		MavenExec task = createGeneratePluginDescriptorTask(project, pluginDescriptorDir);
@@ -211,7 +213,8 @@ public class MavenPluginPlugin implements Plugin<Project> {
 		MavenExec generatePluginDescriptor = project.getTasks().create("generatePluginDescriptor", MavenExec.class);
 		generatePluginDescriptor.args("org.apache.maven.plugins:maven-plugin-plugin:3.6.0:descriptor");
 		generatePluginDescriptor.getOutputs().dir(new File(mavenDir, "target/classes/META-INF/maven"));
-		generatePluginDescriptor.getInputs().dir(new File(mavenDir, "target/classes/org"));
+		generatePluginDescriptor.getInputs().dir(new File(mavenDir, "target/classes/org"))
+				.withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("plugin classes");
 		generatePluginDescriptor.setProjectDir(mavenDir);
 		return generatePluginDescriptor;
 	}
@@ -243,7 +246,8 @@ public class MavenPluginPlugin implements Plugin<Project> {
 
 		void setGenerator(Task generator) {
 			this.generator = generator;
-			getInputs().files(this.generator);
+			getInputs().files(this.generator).withPathSensitivity(PathSensitivity.RELATIVE)
+					.withPropertyName("generated source");
 		}
 
 		@OutputDirectory

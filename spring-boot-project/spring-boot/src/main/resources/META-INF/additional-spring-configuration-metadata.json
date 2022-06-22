@@ -21,12 +21,12 @@
     },
     {
       "name": "logging.charset.console",
-      "type": "java.nio.Charset",
+      "type": "java.nio.charset.Charset",
       "description": "Charset to use for console output."
     },
     {
       "name": "logging.charset.file",
-      "type": "java.nio.Charset",
+      "type": "java.nio.charset.Charset",
       "description": "Charset to use for file output."
     },
     {
@@ -156,7 +156,7 @@
     {
       "name": "logging.file.max-history",
       "type": "java.lang.Integer",
-      "description": "Maximum number of days archive log files are kept. Only supported with the default logback setup.",
+      "description": "Maximum number of archive log files to keep. Only supported with the default logback setup.",
       "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
       "defaultValue": 7,
       "deprecation": {
@@ -194,7 +194,7 @@
     {
       "name": "logging.logback.rollingpolicy.max-history",
       "type": "java.lang.Integer",
-      "description": "Maximum number of days archive log files are kept.",
+      "description": "Maximum number of archive log files to keep.",
       "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
       "defaultValue": 7
     },
@@ -274,10 +274,28 @@
       "defaultValue": true
     },
     {
+      "name": "spring.config.activate.on-cloud-platform",
+      "type": "org.springframework.boot.cloud.CloudPlatform",
+      "description": "Required cloud platform for the document to be included.",
+      "sourceType": "org.springframework.boot.context.config.ConfigDataProperties"
+    },
+    {
+      "name": "spring.config.activate.on-profile",
+      "type": "java.lang.String[]",
+      "description": "Profile expressions that should match for the document to be included.",
+      "sourceType": "org.springframework.boot.context.config.ConfigDataProperties"
+    },
+    {
       "name": "spring.config.additional-location",
       "type": "java.lang.String",
       "sourceType": "org.springframework.boot.context.config.ConfigFileApplicationListener",
       "description": "Config file locations used in addition to the defaults."
+    },
+    {
+      "name": "spring.config.import",
+      "type": "java.util.List<java.lang.String>",
+      "description": "Import additional config data.",
+      "sourceType": "org.springframework.boot.context.config.ConfigDataProperties"
     },
     {
       "name": "spring.config.location",
@@ -291,6 +309,12 @@
       "sourceType": "org.springframework.boot.context.config.ConfigFileApplicationListener",
       "description": "Config file name.",
       "defaultValue": "application"
+    },
+    {
+      "name": "spring.config.use-legacy-processing",
+      "type": "java.lang.Boolean",
+      "description": "Whether to enable configuration data processing legacy mode.",
+      "defaultValue": false
     },
     {
       "name": "spring.jta.atomikos.connectionfactory.borrow-connection-timeout",
@@ -825,10 +849,22 @@
       "description": "Comma-separated list of active profiles. Can be overridden by a command line switch."
     },
     {
+      "name": "spring.profiles.default",
+      "type": "java.lang.String",
+      "description": "Name of the profile to enable if no profile is active.",
+      "defaultValue": "default"
+    },
+    {
       "name": "spring.profiles.include",
       "type": "java.util.List<java.lang.String>",
-      "sourceType": "org.springframework.boot.context.config.ConfigFileApplicationListener",
+      "sourceType": "org.springframework.boot.context.config.Profiles",
       "description": "Unconditionally activate the specified comma-separated list of profiles (or list of profiles if using YAML)."
+    },
+    {
+      "name": "spring.profiles.group",
+      "type": "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "sourceType": "org.springframework.boot.context.config.Profiles",
+      "description": "Profile groups to define a logical name for a related group of profiles."
     },
     {
       "name": "spring.reactor.debug-agent.enabled",
@@ -843,24 +879,6 @@
       "description": "Enable trace logs.",
       "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
       "defaultValue": false
-    },
-    {
-      "name": "spring.config.import",
-      "type": "java.util.List<java.lang.String>",
-      "description": "Import additional config data.",
-      "sourceType": "org.springframework.boot.context.config.ConfigDataProperties"
-    },
-    {
-      "name": "spring.config.activate.on-cloud-platform",
-      "type": "org.springframework.boot.cloud.CloudPlatform",
-      "description": "Required cloud platform for the document to be included.",
-      "sourceType": "org.springframework.boot.context.config.ConfigDataProperties"
-    },
-    {
-      "name": "spring.config.activate.on-profile",
-      "type": "java.lang.String[]",
-      "description": "Profile expressions that should match for the document to be included.",
-      "sourceType": "org.springframework.boot.context.config.ConfigDataProperties"
     }
   ],
   "hints": [

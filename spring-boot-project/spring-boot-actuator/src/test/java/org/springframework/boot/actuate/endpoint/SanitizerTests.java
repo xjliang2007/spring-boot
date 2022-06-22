@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,10 @@ class SanitizerTests {
 		assertThat(sanitizer.sanitize("sometoken", "secret")).isEqualTo("******");
 		assertThat(sanitizer.sanitize("find", "secret")).isEqualTo("secret");
 		assertThat(sanitizer.sanitize("sun.java.command", "--spring.redis.password=pa55w0rd")).isEqualTo("******");
+		assertThat(sanitizer.sanitize("SPRING_APPLICATION_JSON", "{password:123}")).isEqualTo("******");
+		assertThat(sanitizer.sanitize("spring.application.json", "{password:123}")).isEqualTo("******");
+		assertThat(sanitizer.sanitize("VCAP_SERVICES", "{json}")).isEqualTo("******");
+		assertThat(sanitizer.sanitize("vcap.services.db.codeword", "secret")).isEqualTo("******");
 	}
 
 	@ParameterizedTest(name = "key = {0}")
@@ -54,6 +58,14 @@ class SanitizerTests {
 		Sanitizer sanitizer = new Sanitizer();
 		assertThat(sanitizer.sanitize(key, "http://user:password@localhost:8080"))
 				.isEqualTo("http://user:******@localhost:8080");
+	}
+
+	@ParameterizedTest(name = "key = {0}")
+	@MethodSource("matchingUriUserInfoKeys")
+	void uriWithNonAlphaSchemeCharactersAndSingleValueWithPasswordShouldBeSanitized(String key) {
+		Sanitizer sanitizer = new Sanitizer();
+		assertThat(sanitizer.sanitize(key, "s-ch3m.+-e://user:password@localhost:8080"))
+				.isEqualTo("s-ch3m.+-e://user:******@localhost:8080");
 	}
 
 	@ParameterizedTest(name = "key = {0}")

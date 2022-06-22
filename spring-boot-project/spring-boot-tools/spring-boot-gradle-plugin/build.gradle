@@ -10,20 +10,12 @@ plugins {
 
 description = "Spring Boot Gradle Plugin"
 
-configurations {
-	asciidoctorExtensions {
-		extendsFrom dependencyManagement
-	}
-	documentation
+toolchain {
+	maximumCompatibleJavaVersion = JavaLanguageVersion.of(15)
 }
 
-repositories {
-	maven {
-		url "https://repo.spring.io/release"
-		mavenContent {
-			includeGroup "io.spring.asciidoctor"
-		}
-	}
+configurations {
+	documentation
 }
 
 dependencies {
@@ -35,7 +27,9 @@ dependencies {
 	implementation("org.apache.commons:commons-compress")
 	implementation("org.springframework:spring-core")
 
-	optional("org.jetbrains.kotlin:kotlin-gradle-plugin:1.3.50")
+	optional("org.jetbrains.kotlin:kotlin-gradle-plugin:1.3.50") {
+		exclude(group: "commons-logging", module: "commons-logging")
+	}
 
 	testImplementation(project(":spring-boot-project:spring-boot-tools:spring-boot-test-support"))
 	testImplementation("org.assertj:assertj-core")
@@ -43,8 +37,6 @@ dependencies {
 	testImplementation("org.mockito:mockito-core")
 	testImplementation("org.testcontainers:junit-jupiter")
 	testImplementation("org.testcontainers:testcontainers")
-
-	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 gradlePlugin {
@@ -67,6 +59,7 @@ task preparePluginValidationClasses(type: Copy) {
 
 validatePlugins {
 	classes.setFrom preparePluginValidationClasses
+	enableStricterValidation = true
 }
 
 task dependencyVersions(type: org.springframework.boot.build.constraints.ExtractVersionConstraints) {
@@ -82,7 +75,6 @@ tasks.withType(org.asciidoctor.gradle.jvm.AbstractAsciidoctorTask) {
 }
 
 asciidoctor {
-	configurations "asciidoctorExtensions"
 	sources {
 		include "index.adoc"
 	}

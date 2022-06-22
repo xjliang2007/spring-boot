@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package org.springframework.boot.gradle.tasks.bundling;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
@@ -61,6 +62,14 @@ abstract class AbstractBootArchiveIntegrationTests {
 
 	@TestTemplate
 	void basicBuild() throws InvalidRunnerConfigurationException, UnexpectedBuildFailure, IOException {
+		assertThat(this.gradleBuild.build(this.taskName).task(":" + this.taskName).getOutcome())
+				.isEqualTo(TaskOutcome.SUCCESS);
+	}
+
+	@Deprecated
+	@TestTemplate
+	void basicBuildUsingDeprecatedMainClassName()
+			throws InvalidRunnerConfigurationException, UnexpectedBuildFailure, IOException {
 		assertThat(this.gradleBuild.build(this.taskName).task(":" + this.taskName).getOutcome())
 				.isEqualTo(TaskOutcome.SUCCESS);
 	}
@@ -196,7 +205,8 @@ abstract class AbstractBootArchiveIntegrationTests {
 				.isEqualTo(TaskOutcome.SUCCESS);
 		try (JarFile jarFile = new JarFile(new File(this.gradleBuild.getProjectDir(), "build/libs").listFiles()[0])) {
 			Attributes mainAttributes = jarFile.getManifest().getMainAttributes();
-			assertThat(mainAttributes.getValue("Start-Class")).isEqualTo("com.example.main.CustomMainClass");
+			assertThat(mainAttributes.getValue("Start-Class"))
+					.isEqualTo("com.example." + this.taskName.toLowerCase(Locale.ENGLISH) + ".main.CustomMainClass");
 		}
 		assertThat(this.gradleBuild.build(this.taskName).task(":" + this.taskName).getOutcome())
 				.isEqualTo(TaskOutcome.UP_TO_DATE);
@@ -206,10 +216,13 @@ abstract class AbstractBootArchiveIntegrationTests {
 		copyApplication("main");
 	}
 
-	private void copyApplication(String name) throws IOException {
-		File output = new File(this.gradleBuild.getProjectDir(), "src/main/java/com/example/" + name);
+	protected void copyApplication(String name) throws IOException {
+		File output = new File(this.gradleBuild.getProjectDir(),
+				"src/main/java/com/example/" + this.taskName.toLowerCase() + "/" + name);
 		output.mkdirs();
-		FileSystemUtils.copyRecursively(new File("src/test/java/com/example/" + name), output);
+		FileSystemUtils.copyRecursively(
+				new File("src/test/java/com/example/" + this.taskName.toLowerCase(Locale.ENGLISH) + "/" + name),
+				output);
 	}
 
 	private void createStandardJar(File location) throws IOException {

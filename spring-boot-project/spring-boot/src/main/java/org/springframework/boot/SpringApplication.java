@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -164,7 +164,8 @@ public class SpringApplication {
 	/**
 	 * The class name of application context that will be used by default for non-web
 	 * environments.
-	 * @deprecated since 2.4.0 in favour of using a {@link ApplicationContextFactory}
+	 * @deprecated since 2.4.0 for removal in 2.6.0 in favor of using a
+	 * {@link ApplicationContextFactory}
 	 */
 	@Deprecated
 	public static final String DEFAULT_CONTEXT_CLASS = "org.springframework.context."
@@ -173,7 +174,8 @@ public class SpringApplication {
 	/**
 	 * The class name of application context that will be used by default for web
 	 * environments.
-	 * @deprecated since 2.4.0 in favour of using an {@link ApplicationContextFactory}
+	 * @deprecated since 2.4.0 for removal in 2.6.0 in favor of using an
+	 * {@link ApplicationContextFactory}
 	 */
 	@Deprecated
 	public static final String DEFAULT_SERVLET_WEB_CONTEXT_CLASS = "org.springframework.boot."
@@ -182,7 +184,8 @@ public class SpringApplication {
 	/**
 	 * The class name of application context that will be used by default for reactive web
 	 * environments.
-	 * @deprecated since 2.4.0 in favour of using an {@link ApplicationContextFactory}
+	 * @deprecated since 2.4.0 for removal in 2.6.0 in favor of using an
+	 * {@link ApplicationContextFactory}
 	 */
 	@Deprecated
 	public static final String DEFAULT_REACTIVE_WEB_CONTEXT_CLASS = "org.springframework."
@@ -236,7 +239,7 @@ public class SpringApplication {
 
 	private Map<String, Object> defaultProperties;
 
-	private List<Bootstrapper> bootstrappers;
+	private List<BootstrapRegistryInitializer> bootstrapRegistryInitializers;
 
 	private Set<String> additionalProfiles = Collections.emptySet();
 
@@ -280,10 +283,20 @@ public class SpringApplication {
 		Assert.notNull(primarySources, "PrimarySources must not be null");
 		this.primarySources = new LinkedHashSet<>(Arrays.asList(primarySources));
 		this.webApplicationType = WebApplicationType.deduceFromClasspath();
-		this.bootstrappers = new ArrayList<>(getSpringFactoriesInstances(Bootstrapper.class));
+		this.bootstrapRegistryInitializers = getBootstrapRegistryInitializersFromSpringFactories();
 		setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class));
 		setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class));
 		this.mainApplicationClass = deduceMainApplicationClass();
+	}
+
+	@SuppressWarnings("deprecation")
+	private List<BootstrapRegistryInitializer> getBootstrapRegistryInitializersFromSpringFactories() {
+		ArrayList<BootstrapRegistryInitializer> initializers = new ArrayList<>();
+		getSpringFactoriesInstances(Bootstrapper.class).stream()
+				.map((bootstrapper) -> ((BootstrapRegistryInitializer) bootstrapper::initialize))
+				.forEach(initializers::add);
+		initializers.addAll(getSpringFactoriesInstances(BootstrapRegistryInitializer.class));
+		return initializers;
 	}
 
 	private Class<?> deduceMainApplicationClass() {
@@ -349,7 +362,7 @@ public class SpringApplication {
 
 	private DefaultBootstrapContext createBootstrapContext() {
 		DefaultBootstrapContext bootstrapContext = new DefaultBootstrapContext();
-		this.bootstrappers.forEach((initializer) -> initializer.intitialize(bootstrapContext));
+		this.bootstrapRegistryInitializers.forEach((initializer) -> initializer.initialize(bootstrapContext));
 		return bootstrapContext;
 	}
 
@@ -360,15 +373,12 @@ public class SpringApplication {
 		configureEnvironment(environment, applicationArguments.getSourceArgs());
 		ConfigurationPropertySources.attach(environment);
 		listeners.environmentPrepared(bootstrapContext, environment);
-		// environmentPrepared 事件被处理后可能会改变 DefaultPropertiesPropertySource的位置，重新放到末尾保证其作为默认配置的正确性
 		DefaultPropertiesPropertySource.moveToEnd(environment);
-		configureAdditionalProfiles(environment);
 		bindToSpringApplication(environment);
 		if (!this.isCustomEnvironment) {
 			environment = new EnvironmentConverter(getClassLoader()).convertEnvironmentIfNecessary(environment,
 					deduceEnvironmentClass());
 		}
-		// environmentPrepared 事件被处理后可能会添加新的 PropertySource，因此需要重新attach
 		ConfigurationPropertySources.attach(environment);
 		return environment;
 	}
@@ -515,15 +525,11 @@ public class SpringApplication {
 	 */
 	protected void configurePropertySources(ConfigurableEnvironment environment, String[] args) {
 		MutablePropertySources sources = environment.getPropertySources();
-		//把defaultProperties放在propertySources的末尾
-		DefaultPropertiesPropertySource.ifNotEmpty(this.defaultProperties, sources::addLast);
+		if (!CollectionUtils.isEmpty(this.defaultProperties)) {
+			DefaultPropertiesPropertySource.addOrMerge(this.defaultProperties, sources);
+		}
 		if (this.addCommandLineProperties && args.length > 0) {
 			String name = CommandLinePropertySource.COMMAND_LINE_PROPERTY_SOURCE_NAME;
-			/*	增加PropertySources的标准姿势：
-				先查询PropertySource name是否已经存在，若不存在，则直接添加相应的PropertySource；
-				若存在，则新建CompositePropertySource，将新PropertySource及已有PropertySource分别添加进去，
-				然后替换掉PropertySources中的同名source即可。
-			 */
 			if (sources.contains(name)) {
 				PropertySource<?> source = sources.get(name);
 				CompositePropertySource composite = new CompositePropertySource(name);
@@ -548,16 +554,6 @@ public class SpringApplication {
 	 * @see org.springframework.boot.context.config.ConfigFileApplicationListener
 	 */
 	protected void configureProfiles(ConfigurableEnvironment environment, String[] args) {
-	}
-
-	private void configureAdditionalProfiles(ConfigurableEnvironment environment) {
-		if (!CollectionUtils.isEmpty(this.additionalProfiles)) {
-			Set<String> profiles = new LinkedHashSet<>(Arrays.asList(environment.getActiveProfiles()));
-			if (!profiles.containsAll(this.additionalProfiles)) {
-				profiles.addAll(this.additionalProfiles);
-				environment.setActiveProfiles(StringUtils.toStringArray(profiles));
-			}
-		}
 	}
 
 	private void configureIgnoreBeanInfo(ConfigurableEnvironment environment) {
@@ -687,15 +683,7 @@ public class SpringApplication {
 	}
 
 	/**
-	 * Load sources bean definition into the application context.
-	 * 注意：
-	 * 这里只是将 SpringApplication的sources(包括primary source和其他设定的sources)的bean definition加载到Bean Factory中，<br>
-	 * 不包括扫描所有的bean definition。
-	 * springboot应用中真正的扫描并解析加载以 @Configuration Model为核心的所有 Bean Definition过程，是放在refreshContext阶段进行的（
-	 * 		即放在AbstractApplicationContext的refresh()中的 invokeBeanFactoryPostProcessors()中进行处理，处理的核心逻辑就放在
-	 * 		ConfigurationClassPostProcessor[这是个BeanDefinitionRegistryPostProcessor/BeanFactoryPostProcessor]这个类中
-	 * 	）
-	 *
+	 * Load beans into the application context.
 	 * @param context the context to load beans into
 	 * @param sources the sources to load
 	 */
@@ -766,7 +754,7 @@ public class SpringApplication {
 	/**
 	 * Refresh the underlying {@link ApplicationContext}.
 	 * @param applicationContext the application context to refresh
-	 * @deprecated since 2.3.0 in favor of
+	 * @deprecated since 2.3.0 for removal in 2.5.0 in favor of
 	 * {@link #refresh(ConfigurableApplicationContext)}
 	 */
 	@Deprecated
@@ -1068,10 +1056,24 @@ public class SpringApplication {
 	 * {@link BootstrapRegistry}.
 	 * @param bootstrapper the bootstraper
 	 * @since 2.4.0
+	 * @deprecated since 2.4.5 for removal in 2.6 in favor of
+	 * {@link #addBootstrapRegistryInitializer(BootstrapRegistryInitializer)}
 	 */
+	@Deprecated
 	public void addBootstrapper(Bootstrapper bootstrapper) {
 		Assert.notNull(bootstrapper, "Bootstrapper must not be null");
-		this.bootstrappers.add(bootstrapper);
+		this.bootstrapRegistryInitializers.add(bootstrapper::initialize);
+	}
+
+	/**
+	 * Adds {@link BootstrapRegistryInitializer} instances that can be used to initialize
+	 * the {@link BootstrapRegistry}.
+	 * @param bootstrapRegistryInitializer the bootstrap registry initializer to add
+	 * @since 2.4.5
+	 */
+	public void addBootstrapRegistryInitializer(BootstrapRegistryInitializer bootstrapRegistryInitializer) {
+		Assert.notNull(bootstrapRegistryInitializer, "BootstrapRegistryInitializer must not be null");
+		this.bootstrapRegistryInitializers.addAll(Arrays.asList(bootstrapRegistryInitializer));
 	}
 
 	/**
@@ -1161,8 +1163,8 @@ public class SpringApplication {
 	}
 
 	/**
-	 * Set additional sources that will be used to create an ApplicationContext.
-	 * A source can be: a class name, package name, or an XML resource location.
+	 * Set additional sources that will be used to create an ApplicationContext. A source
+	 * can be: a class name, package name, or an XML resource location.
 	 * <p>
 	 * Sources set here will be used in addition to any primary sources set in the
 	 * constructor.
@@ -1208,7 +1210,7 @@ public class SpringApplication {
 	 * applications or {@link AnnotationConfigApplicationContext} for non web based
 	 * applications.
 	 * @param applicationContextClass the context class to set
-	 * @deprecated since 2.4.0 in favor of
+	 * @deprecated since 2.4.0 for removal in 2.6.0 in favor of
 	 * {@link #setApplicationContextFactory(ApplicationContextFactory)}
 	 */
 	@Deprecated
@@ -1290,6 +1292,7 @@ public class SpringApplication {
 	/**
 	 * Set the {@link ApplicationStartup} to use for collecting startup metrics.
 	 * @param applicationStartup the application startup to use
+	 * @since 2.4.0
 	 */
 	public void setApplicationStartup(ApplicationStartup applicationStartup) {
 		this.applicationStartup = (applicationStartup != null) ? applicationStartup : ApplicationStartup.DEFAULT;
@@ -1298,6 +1301,7 @@ public class SpringApplication {
 	/**
 	 * Returns the {@link ApplicationStartup} used for collecting startup metrics.
 	 * @return the application startup
+	 * @since 2.4.0
 	 */
 	public ApplicationStartup getApplicationStartup() {
 		return this.applicationStartup;
@@ -1349,7 +1353,7 @@ public class SpringApplication {
 	 * {@link ExitCodeGenerator}. In the case of multiple exit codes the highest value
 	 * will be used (or if all values are negative, the lowest value will be used)
 	 * @param context the context to close if possible
-	 * @param exitCodeGenerators exist code generators
+	 * @param exitCodeGenerators exit code generators
 	 * @return the outcome (0 if successful)
 	 */
 	public static int exit(ApplicationContext context, ExitCodeGenerator... exitCodeGenerators) {

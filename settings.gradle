@@ -3,7 +3,7 @@ pluginManagement {
 		mavenCentral()
 		gradlePluginPortal()
 		maven {
-			url 'https://repo.spring.io/plugins-release'
+			url 'https://repo.spring.io/release'
 		}
 		if (version.endsWith('-SNAPSHOT')) {
 			maven { url "https://repo.spring.io/snapshot" }
@@ -22,8 +22,8 @@ pluginManagement {
 }
 
 plugins {
-	id "com.gradle.enterprise" version "3.5"
-	id "io.spring.ge.conventions" version "0.0.7"
+	id "com.gradle.enterprise" version "3.6.1"
+	id "io.spring.ge.conventions" version "0.0.8"
 }
 
 rootProject.name="spring-boot-build"
@@ -31,8 +31,10 @@ rootProject.name="spring-boot-build"
 settings.gradle.projectsLoaded {
 	gradleEnterprise {
 		buildScan {
-			if (settings.gradle.rootProject.hasProperty('buildJavaHome')) {
-				value('Build Java home', settings.gradle.rootProject.getProperty('buildJavaHome'))
+			def toolchainVersion = settings.gradle.rootProject.findProperty('toolchainVersion')
+			if (toolchainVersion != null) {
+				value('Toolchain version', toolchainVersion)
+				tag("JDK-$toolchainVersion")
 			}
 
 			settings.gradle.rootProject.getBuildDir().mkdirs()

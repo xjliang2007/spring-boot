@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.AvailabilityState;
 import org.springframework.boot.availability.LivenessState;
 import org.springframework.boot.availability.ReadinessState;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.event.ApplicationContextInitializedEvent;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
 import org.springframework.boot.context.event.ApplicationFailedEvent;
@@ -105,6 +106,7 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.metrics.ApplicationStartup;
 import org.springframework.core.metrics.StartupStep;
 import org.springframework.http.server.reactive.HttpHandler;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -145,6 +147,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
  * @author Brian Clozel
  * @author Artsiom Yudovin
  * @author Marten Deinum
+ * @author Nguyen Bao Sach
  */
 @ExtendWith(OutputCaptureExtension.class)
 class SpringApplicationTests {
@@ -591,15 +594,14 @@ class SpringApplicationTests {
 	}
 
 	@Test
-	void addProfilesOrder() {
+	void additionalProfilesOrderedBeforeActiveProfiles() {
 		SpringApplication application = new SpringApplication(ExampleConfig.class);
 		application.setWebApplicationType(WebApplicationType.NONE);
 		application.setAdditionalProfiles("foo");
 		ConfigurableEnvironment environment = new StandardEnvironment();
 		application.setEnvironment(environment);
 		this.context = application.run("--spring.profiles.active=bar,spam");
-		// Since Boot 2.4 additional should always be last
-		assertThat(environment.getActiveProfiles()).containsExactly("bar", "spam", "foo");
+		assertThat(environment.getActiveProfiles()).containsExactly("foo", "bar", "spam");
 	}
 
 	@Test
@@ -885,6 +887,18 @@ class SpringApplicationTests {
 		assertThat(this.context).isInstanceOf(AnnotationConfigApplicationContext.class);
 		assertThat(getEnvironment().getProperty("bar")).isEqualTo("foo");
 		assertThat(getEnvironment().getProperty("baz")).isEqualTo("");
+	}
+
+	@Test
+	void defaultPropertiesShouldBeMerged() {
+		MockEnvironment environment = new MockEnvironment();
+		environment.getPropertySources().addFirst(
+				new MapPropertySource(DefaultPropertiesPropertySource.NAME, Collections.singletonMap("bar", "foo")));
+		SpringApplication application = new SpringApplicationBuilder(ExampleConfig.class).environment(environment)
+				.properties("baz=bing").web(WebApplicationType.NONE).build();
+		this.context = application.run();
+		assertThat(getEnvironment().getProperty("bar")).isEqualTo("foo");
+		assertThat(getEnvironment().getProperty("baz")).isEqualTo("bing");
 	}
 
 	@Test
@@ -1205,32 +1219,57 @@ class SpringApplicationTests {
 	}
 
 	@Test
-	void addBootstrapper() {
+	void addBootstrapRegistryInitializer() {
 		SpringApplication application = new SpringApplication(ExampleConfig.class);
 		application.setWebApplicationType(WebApplicationType.NONE);
-		application.addBootstrapper(
+		application.addBootstrapRegistryInitializer(
 				(bootstrapContext) -> bootstrapContext.register(String.class, InstanceSupplier.of("boot")));
 		TestApplicationListener listener = new TestApplicationListener();
 		application.addListeners(listener);
 		application.run();
 		ApplicationStartingEvent startingEvent = listener.getEvent(ApplicationStartingEvent.class);
-		assertThat(startingEvent.getBootstrapContext().get(String.class));
+		assertThat(startingEvent.getBootstrapContext().get(String.class)).isEqualTo("boot");
 		ApplicationEnvironmentPreparedEvent environmentPreparedEvent = listener
 				.getEvent(ApplicationEnvironmentPreparedEvent.class);
-		assertThat(environmentPreparedEvent.getBootstrapContext().get(String.class));
+		assertThat(environmentPreparedEvent.getBootstrapContext().get(String.class)).isEqualTo("boot");
 	}
 
 	@Test
-	void addBootstrapperCanRegisterBeans() {
+	void addBootstrapRegistryInitializerCanRegisterBeans() {
 		SpringApplication application = new SpringApplication(ExampleConfig.class);
 		application.setWebApplicationType(WebApplicationType.NONE);
-		application.addBootstrapper((bootstrapContext) -> {
+		application.addBootstrapRegistryInitializer((bootstrapContext) -> {
 			bootstrapContext.register(String.class, InstanceSupplier.of("boot"));
 			bootstrapContext.addCloseListener((event) -> event.getApplicationContext().getBeanFactory()
 					.registerSingleton("test", event.getBootstrapContext().get(String.class)));
 		});
 		ConfigurableApplicationContext applicationContext = application.run();
 		assertThat(applicationContext.getBean("test")).isEqualTo("boot");
+	}
+
+	@Test
+	@Deprecated
+	void whenABootstrapperImplementsOnlyTheOldMethodThenItIsCalled() {
+		SpringApplication application = new SpringApplication(ExampleConfig.class);
+		application.setWebApplicationType(WebApplicationType.NONE);
+		OnlyOldMethodTestBootstrapper bootstrapper = new OnlyOldMethodTestBootstrapper();
+		application.addBootstrapper(bootstrapper);
+		try (ConfigurableApplicationContext applicationContext = application.run()) {
+			assertThat(bootstrapper.intitialized).isTrue();
+		}
+	}
+
+	@Test
+	@Deprecated
+	void whenABootstrapperImplementsTheOldMethodAndTheNewMethodThenOnlyTheNewMethodIsCalled() {
+		SpringApplication application = new SpringApplication(ExampleConfig.class);
+		application.setWebApplicationType(WebApplicationType.NONE);
+		BothMethodsTestBootstrapper bootstrapper = new BothMethodsTestBootstrapper();
+		application.addBootstrapper(bootstrapper);
+		try (ConfigurableApplicationContext applicationContext = application.run()) {
+			assertThat(bootstrapper.intitialized).isFalse();
+			assertThat(bootstrapper.initialized).isTrue();
+		}
 	}
 
 	private <S extends AvailabilityState> ArgumentMatcher<ApplicationEvent> isAvailabilityChangeEventWithState(
@@ -1702,6 +1741,37 @@ class SpringApplicationTests {
 		@SuppressWarnings("unchecked")
 		<E extends ApplicationEvent> E getEvent(Class<E> type) {
 			return (E) this.events.get(type).get(0);
+		}
+
+	}
+
+	@Deprecated
+	static class OnlyOldMethodTestBootstrapper implements Bootstrapper {
+
+		private boolean intitialized;
+
+		@Override
+		public void intitialize(BootstrapRegistry registry) {
+			this.intitialized = true;
+		}
+
+	}
+
+	@Deprecated
+	static class BothMethodsTestBootstrapper implements Bootstrapper {
+
+		private boolean intitialized;
+
+		private boolean initialized;
+
+		@Override
+		public void intitialize(BootstrapRegistry registry) {
+			this.intitialized = true;
+		}
+
+		@Override
+		public void initialize(BootstrapRegistry registry) {
+			this.initialized = true;
 		}
 
 	}

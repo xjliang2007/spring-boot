@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,11 +31,11 @@ import org.springframework.boot.gradle.testkit.GradleBuild;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Integration tests for {@link WarPluginAction}.
+ * Integration tests for {@link JavaPluginAction}.
  *
  * @author Andy Wilkinson
  */
-@GradleCompatibility
+@GradleCompatibility(configurationCache = true)
 class JavaPluginActionIntegrationTests {
 
 	GradleBuild gradleBuild;
@@ -152,6 +152,18 @@ class JavaPluginActionIntegrationTests {
 				.getOutput()).contains("3 productionRuntimeClasspath attributes:")
 						.contains("org.gradle.usage: java-runtime").contains("org.gradle.libraryelements: jar")
 						.contains("org.gradle.dependency.bundling: external");
+	}
+
+	@TestTemplate
+	void productionRuntimeClasspathIsConfiguredWithResolvabilityAndConsumabilityThatMatchesRuntimeClasspath() {
+		String runtime = this.gradleBuild.build("configurationResolvabilityAndConsumability",
+				"-PconfigurationName=runtimeClasspath", "-PapplyJavaPlugin").getOutput();
+		assertThat(runtime).contains("canBeResolved: true");
+		assertThat(runtime).contains("canBeConsumed: false");
+		String productionRuntime = this.gradleBuild.build("configurationResolvabilityAndConsumability",
+				"-PconfigurationName=productionRuntimeClasspath", "-PapplyJavaPlugin").getOutput();
+		assertThat(productionRuntime).contains("canBeResolved: true");
+		assertThat(productionRuntime).contains("canBeConsumed: false");
 	}
 
 	private void createMinimalMainSource() throws IOException {

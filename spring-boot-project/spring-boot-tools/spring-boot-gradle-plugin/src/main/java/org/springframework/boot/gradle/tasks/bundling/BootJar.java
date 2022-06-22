@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,15 +74,16 @@ public class BootJar extends Jar implements BootArchive {
 	 */
 	public BootJar() {
 		this.support = new BootArchiveSupport(LAUNCHER, new LibrarySpec(), new ZipCompressionResolver());
-		this.bootInfSpec = getProject().copySpec().into("BOOT-INF");
-		this.mainClass = getProject().getObjects().property(String.class);
+		Project project = getProject();
+		this.bootInfSpec = project.copySpec().into("BOOT-INF");
+		this.mainClass = project.getObjects().property(String.class);
 		configureBootInfSpec(this.bootInfSpec);
 		getMainSpec().with(this.bootInfSpec);
-		getProject().getConfigurations().all((configuration) -> {
+		project.getConfigurations().all((configuration) -> {
 			ResolvableDependencies incoming = configuration.getIncoming();
 			incoming.afterResolve((resolvableDependencies) -> {
 				if (resolvableDependencies == incoming) {
-					this.resolvedDependencies.processConfiguration(configuration);
+					this.resolvedDependencies.processConfiguration(project, configuration);
 				}
 			});
 		});
@@ -132,7 +133,8 @@ public class BootJar extends Jar implements BootArchive {
 	 * Returns the {@link Configuration Configurations} of the project associated with
 	 * this task.
 	 * @return the configurations
-	 * @deprecated since 2.3.5 in favor of {@link Project#getConfigurations}
+	 * @deprecated since 2.3.5 for removal in 2.5 in favor of
+	 * {@link Project#getConfigurations}
 	 */
 	@Internal
 	@Deprecated
@@ -195,7 +197,7 @@ public class BootJar extends Jar implements BootArchive {
 	/**
 	 * Configures the jar to be layered using the default layering.
 	 * @since 2.3.0
-	 * @deprecated since 2.4.0 as layering as now enabled by default.
+	 * @deprecated since 2.4.0 for removal in 2.6.0 as layering as now enabled by default.
 	 */
 	@Deprecated
 	public void layered() {
