@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -323,6 +323,7 @@ public class ServerProperties {
 			@DurationUnit(ChronoUnit.SECONDS)
 			private Duration timeout = Duration.ofMinutes(30);
 
+			@NestedConfigurationProperty
 			private final Cookie cookie = new Cookie();
 
 			public Duration getTimeout() {
@@ -1737,8 +1738,14 @@ public class ServerProperties {
 
 		public static class Options {
 
+			/**
+			 * Socket options as defined in org.xnio.Options.
+			 */
 			private Map<String, String> socket = new LinkedHashMap<>();
 
+			/**
+			 * Server options as defined in io.undertow.UndertowOptions.
+			 */
 			private Map<String, String> server = new LinkedHashMap<>();
 
 			public Map<String, String> getServer() {

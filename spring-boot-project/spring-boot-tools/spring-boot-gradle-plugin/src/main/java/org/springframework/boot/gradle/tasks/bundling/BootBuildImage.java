@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 import groovy.lang.Closure;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -33,11 +32,14 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
-import org.gradle.util.ConfigureUtil;
+import org.gradle.work.DisableCachingByDefault;
 
 import org.springframework.boot.buildpack.platform.build.BuildRequest;
 import org.springframework.boot.buildpack.platform.build.Builder;
@@ -63,6 +65,7 @@ import org.springframework.util.StringUtils;
  * @author Julian Liebig
  * @since 2.3.0
  */
+@DisableCachingByDefault
 public class BootBuildImage extends DefaultTask {
 
 	private static final String BUILDPACK_JVM_VERSION_KEY = "BP_JVM_VERSION";
@@ -121,7 +124,8 @@ public class BootBuildImage extends DefaultTask {
 	 * Returns the property for the archive file from which the image will be built.
 	 * @return the archive file property
 	 */
-	@Input
+	@InputFile
+	@PathSensitive(PathSensitivity.RELATIVE)
 	public RegularFileProperty getArchiveFile() {
 		return this.archiveFile;
 	}
@@ -132,7 +136,8 @@ public class BootBuildImage extends DefaultTask {
 	 * @deprecated since 2.5.0 for removal in 2.7.0 in favor of {@link #getArchiveFile()}
 	 */
 	@Deprecated
-	@Input
+	@InputFile
+	@PathSensitive(PathSensitivity.RELATIVE)
 	public RegularFileProperty getJar() {
 		return this.archiveFile;
 	}
@@ -466,7 +471,7 @@ public class BootBuildImage extends DefaultTask {
 	 * @param closure the closure
 	 */
 	public void buildCache(Closure<?> closure) {
-		buildCache(ConfigureUtil.configureUsing(closure));
+		buildCache(Closures.asAction(closure));
 	}
 
 	/**
@@ -494,7 +499,7 @@ public class BootBuildImage extends DefaultTask {
 	 * @param closure the closure
 	 */
 	public void launchCache(Closure<?> closure) {
-		launchCache(ConfigureUtil.configureUsing(closure));
+		launchCache(Closures.asAction(closure));
 	}
 
 	/**
@@ -522,7 +527,7 @@ public class BootBuildImage extends DefaultTask {
 	 * @since 2.4.0
 	 */
 	public void docker(Closure<?> closure) {
-		docker(ConfigureUtil.configureUsing(closure));
+		docker(Closures.asAction(closure));
 	}
 
 	@TaskAction
@@ -605,11 +610,6 @@ public class BootBuildImage extends DefaultTask {
 	}
 
 	private BuildRequest customizePublish(BuildRequest request) {
-		boolean publishRegistryAuthNotConfigured = this.docker == null || this.docker.getPublishRegistry() == null
-				|| this.docker.getPublishRegistry().hasEmptyAuth();
-		if (this.publish && publishRegistryAuthNotConfigured) {
-			throw new GradleException("Publishing an image requires docker.publishRegistry to be configured");
-		}
 		request = request.withPublish(this.publish);
 		return request;
 	}
